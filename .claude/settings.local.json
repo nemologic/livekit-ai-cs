@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm info *)",
+      "WebFetch(domain:docs.livekit.io)",
+      "WebFetch(domain:pub.dev)",
+      "WebSearch",
+      "WebFetch(domain:developers.deepgram.com)",
+      "Bash(npm install *)",
+      "Bash(node *)",
+      "Bash(npx tsc *)",
+      "Bash(flutter --version)",
+      "Bash(flutter create *)",
+      "Bash(flutter pub *)",
+      "Bash(flutter analyze *)",
+      "Bash(npm run *)"
+    ]
+  }
+}

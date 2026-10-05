@@ -1,0 +1,14 @@
+[project]
+name = "local-speech-server"
+version = "1.0.0"
+description = "로컬 STT(Whisper large-v3) + TTS(MeloTTS) — OpenAI 호환 API"
+requires-python = ">=3.10,<3.11"
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn>=0.29",
+    "python-multipart>=0.0.9",
+    "mlx-whisper>=0.4",
+    "scipy>=1.11",
+    "setuptools<81",  # MeloTTS가 쓰는 librosa 0.9가 pkg_resources를 필요로 함
+    "melotts @ git+https://github.com/myshell-ai/MeloTTS.git",
+]

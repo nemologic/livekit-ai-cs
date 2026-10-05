@@ -1,0 +1,5 @@
+.venv/
+vendor/
+voices/
+__pycache__/
+uv.lock

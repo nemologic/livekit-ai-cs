@@ -4,8 +4,11 @@ log_level: info
 rtc:
   tcp_port: 7881
   port_range_start: 50000
-  port_range_end: 60000
+  # docker-compose.yml에서 여는 UDP 포트 범위와 같아야 한다
+  port_range_end: 50020
   use_external_ip: false
+  # 다른 기기에서 접속하려면 컨테이너 내부 IP 대신 이 서버의 LAN IP를 알려줘야 한다
+  node_ip: 192.168.200.102
 
 redis:
   address: redis:6379

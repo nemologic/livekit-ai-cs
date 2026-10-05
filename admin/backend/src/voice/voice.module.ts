@@ -4,10 +4,10 @@ import { VoiceController } from './voice.controller';
 import { VoiceService } from './voice.service';
 import { VoiceProfile } from './voice-profile.entity';
 import { AuthModule } from '../auth/auth.module';
-import { ElevenLabsModule } from '../elevenlabs/elevenlabs.module';
+import { SpeechModule } from '../speech/speech.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([VoiceProfile]), AuthModule, ElevenLabsModule],
+  imports: [TypeOrmModule.forFeature([VoiceProfile]), AuthModule, SpeechModule],
   controllers: [VoiceController],
   providers: [VoiceService],
 })

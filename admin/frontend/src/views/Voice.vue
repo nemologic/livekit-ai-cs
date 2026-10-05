@@ -4,7 +4,7 @@
     <el-card style="margin-bottom: 24px;">
       <template #header>
         <div style="display: flex; align-items: center; justify-content: space-between;">
-          <span style="font-weight: 600;">내 목소리 프로필</span>
+          <span style="font-weight: 600;">목소리 프로필</span>
           <el-button type="primary" @click="openModal()">
             <el-icon><Plus /></el-icon>
             새 프로필 추가
@@ -23,8 +23,15 @@
             </span>
           </template>
         </el-table-column>
-        <el-table-column prop="voiceId" label="Voice ID" min-width="180" />
-        <el-table-column prop="model" label="모델" min-width="160" />
+        <el-table-column label="목소리" min-width="160">
+          <template #default="{ row }">{{ voiceLabel(row.voiceId) }}</template>
+        </el-table-column>
+        <el-table-column label="속도" width="90">
+          <template #default="{ row }">{{ row.speed.toFixed(2) }}x</template>
+        </el-table-column>
+        <el-table-column label="억양 변화" width="100">
+          <template #default="{ row }">{{ row.variation.toFixed(2) }}</template>
+        </el-table-column>
         <el-table-column label="활성화 여부" width="110">
           <template #default="{ row }">
             <el-tag :type="row.isActive ? 'success' : 'info'" size="small">
@@ -47,15 +54,21 @@
       </el-table>
     </el-card>
 
-    <!-- Section 2: ElevenLabs Voice Browser -->
+    <!-- Section 2: Voice Browser -->
     <el-card>
       <template #header>
         <div style="display: flex; align-items: center; justify-content: space-between;">
-          <span style="font-weight: 600;">ElevenLabs 목소리 탐색</span>
-          <el-button type="primary" plain :loading="loadingAvailable" @click="fetchAvailableVoices">
-            <el-icon><Refresh /></el-icon>
-            목소리 목록 불러오기
-          </el-button>
+          <span style="font-weight: 600;">목소리 목록</span>
+          <div>
+            <el-button plain :loading="loadingAvailable" @click="fetchAvailableVoices">
+              <el-icon><Refresh /></el-icon>
+              새로고침
+            </el-button>
+            <el-button type="primary" @click="openCloneModal">
+              <el-icon><Microphone /></el-icon>
+              내 목소리 등록
+            </el-button>
+          </div>
         </div>
       </template>
 
@@ -67,10 +80,6 @@
         style="margin-bottom: 16px;"
       />
 
-      <div v-if="availableVoices.length === 0 && !loadingAvailable" style="text-align: center; padding: 40px; color: #909399;">
-        목소리 목록 불러오기 버튼을 눌러 ElevenLabs 목소리를 탐색하세요.
-      </div>
-
       <div v-loading="loadingAvailable">
         <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px;">
           <el-card
@@ -80,16 +89,8 @@
             style="cursor: default;"
           >
             <div style="font-weight: 600; font-size: 15px; margin-bottom: 4px;">{{ voice.name }}</div>
-            <div style="color: #909399; font-size: 12px; margin-bottom: 8px;">
-              {{ voice.category || '커스텀' }}
-            </div>
-            <div style="display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 12px;">
-              <el-tag
-                v-for="(val, key) in (voice.labels || {})"
-                :key="key"
-                size="small"
-                type="info"
-              >{{ val }}</el-tag>
+            <div style="margin-bottom: 12px;">
+              <el-tag size="small" :type="isCloned(voice) ? 'success' : 'info'">{{ voice.category }}</el-tag>
             </div>
             <el-button
               size="small"
@@ -97,12 +98,19 @@
               plain
               @click="prefillFromVoice(voice)"
             >이 목소리로 프로필 만들기</el-button>
+            <el-button
+              v-if="isCloned(voice)"
+              size="small"
+              type="danger"
+              plain
+              @click="handleDeleteVoice(voice)"
+            >삭제</el-button>
           </el-card>
         </div>
       </div>
     </el-card>
 
-    <!-- Add/Edit Modal -->
+    <!-- Add/Edit Profile Modal -->
     <el-dialog
       v-model="modalVisible"
       :title="editingItem ? '목소리 프로필 수정' : '목소리 프로필 추가'"
@@ -113,29 +121,29 @@
         <el-form-item label="프로필 이름" prop="name">
           <el-input v-model="form.name" placeholder="예: 친절한 상담원" />
         </el-form-item>
-        <el-form-item label="Voice ID" prop="voiceId">
-          <el-input v-model="form.voiceId" placeholder="ElevenLabs Voice ID" />
-        </el-form-item>
-        <el-form-item label="모델" prop="model">
-          <el-select v-model="form.model" style="width: 100%;">
-            <el-option label="eleven_multilingual_v2" value="eleven_multilingual_v2" />
-            <el-option label="eleven_turbo_v2_5" value="eleven_turbo_v2_5" />
-            <el-option label="eleven_flash_v2_5" value="eleven_flash_v2_5" />
+        <el-form-item label="목소리" prop="voiceId">
+          <el-select v-model="form.voiceId" style="width: 100%;" placeholder="목소리를 선택하세요">
+            <el-option
+              v-for="voice in availableVoices"
+              :key="voice.voice_id"
+              :label="`${voice.name} (${voice.category})`"
+              :value="voice.voice_id"
+            />
           </el-select>
         </el-form-item>
-        <el-form-item label="안정성 (Stability)">
-          <el-slider v-model="form.stability" :min="0" :max="1" :step="0.01" show-input />
+        <el-form-item label="말하기 속도">
+          <el-slider v-model="form.speed" :min="0.5" :max="1.5" :step="0.05" show-input />
         </el-form-item>
-        <el-form-item label="유사성 (Similarity Boost)">
-          <el-slider v-model="form.similarityBoost" :min="0" :max="1" :step="0.01" show-input />
-        </el-form-item>
-        <el-form-item label="스타일 (Style)">
-          <el-slider v-model="form.style" :min="0" :max="1" :step="0.01" show-input />
-        </el-form-item>
-        <el-form-item label="Speaker Boost">
-          <el-checkbox v-model="form.useSpeakerBoost">Speaker Boost 사용</el-checkbox>
+        <el-form-item label="억양 변화">
+          <el-slider v-model="form.variation" :min="0" :max="1" :step="0.05" show-input />
+          <div style="font-size: 12px; color: #909399;">
+            낮을수록 차분하고 일정하게, 높을수록 생동감 있게 말합니다. 기본값은 0.5입니다.
+          </div>
         </el-form-item>
 
+        <el-form-item label="미리듣기 문장">
+          <el-input v-model="previewText" type="textarea" :rows="2" />
+        </el-form-item>
         <el-form-item>
           <el-button
             type="info"
@@ -155,6 +163,46 @@
         <el-button type="primary" :loading="saving" @click="handleSave">저장</el-button>
       </template>
     </el-dialog>
+
+    <!-- Clone Voice Modal -->
+    <el-dialog v-model="cloneVisible" title="내 목소리 등록" width="520px">
+      <el-form label-position="top">
+        <el-form-item label="목소리 이름">
+          <el-input v-model="cloneForm.name" placeholder="예: 대표님 목소리" />
+        </el-form-item>
+        <el-form-item label="녹음 파일">
+          <el-upload
+            ref="uploadRef"
+            :auto-upload="false"
+            :limit="1"
+            accept="audio/*,.m4a,.mp3,.wav,.webm"
+            :on-change="(file) => (cloneForm.file = file.raw)"
+            :on-remove="() => (cloneForm.file = null)"
+          >
+            <el-button>파일 선택</el-button>
+          </el-upload>
+          <div style="font-size: 12px; color: #909399; line-height: 1.6;">
+            조용한 곳에서 한 사람이 또박또박 말한 30초~1분 분량이 좋습니다 (최소 5초, 2분까지만 사용).<br />
+            음색만 추출해 저장하며 원본 녹음은 보관하지 않습니다.
+          </div>
+        </el-form-item>
+        <el-form-item>
+          <el-checkbox v-model="cloneForm.consent">
+            본인 목소리이거나, 목소리 주인에게 사용 동의를 받았습니다.
+          </el-checkbox>
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <el-button @click="cloneVisible = false">취소</el-button>
+        <el-button
+          type="primary"
+          :loading="cloning"
+          :disabled="!cloneForm.name.trim() || !cloneForm.file || !cloneForm.consent"
+          @click="handleClone"
+        >등록</el-button>
+      </template>
+    </el-dialog>
   </AppLayout>
 </template>
 
@@ -164,16 +212,19 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import AppLayout from '../components/AppLayout.vue'
 import api from '../api'
 
+const CLONED_CATEGORY = '내 목소리'
+const DEFAULT_PREVIEW_TEXT = '안녕하세요, 저는 AI 상담원입니다. 무엇을 도와드릴까요?'
+
 // Profiles
 const profiles = ref([])
 const loadingProfiles = ref(false)
 
-// Available ElevenLabs voices
+// Available voices (MeloTTS 기본 화자 + 등록한 내 목소리)
 const availableVoices = ref([])
 const loadingAvailable = ref(false)
 const availableError = ref('')
 
-// Modal
+// Profile modal
 const modalVisible = ref(false)
 const editingItem = ref(null)
 const saving = ref(false)
@@ -181,23 +232,33 @@ const formRef = ref(null)
 const form = reactive({
   name: '',
   voiceId: '',
-  model: 'eleven_multilingual_v2',
-  stability: 0.5,
-  similarityBoost: 0.75,
-  style: 0.0,
-  useSpeakerBoost: true,
+  speed: 1.0,
+  variation: 0.5,
 })
 
 const formRules = {
   name: [{ required: true, message: '프로필 이름을 입력하세요', trigger: 'blur' }],
-  voiceId: [{ required: true, message: 'Voice ID를 입력하세요', trigger: 'blur' }],
-  model: [{ required: true, message: '모델을 선택하세요', trigger: 'change' }],
+  voiceId: [{ required: true, message: '목소리를 선택하세요', trigger: 'change' }],
 }
 
 // Preview
 const loadingPreview = ref(false)
 const previewAudioSrc = ref('')
+const previewText = ref(DEFAULT_PREVIEW_TEXT)
 const audioRef = ref(null)
+
+// Clone modal
+const cloneVisible = ref(false)
+const cloning = ref(false)
+const uploadRef = ref(null)
+const cloneForm = reactive({ name: '', file: null, consent: false })
+
+const isCloned = (voice) => voice.category === CLONED_CATEGORY
+
+function voiceLabel(voiceId) {
+  const voice = availableVoices.value.find((v) => v.voice_id === voiceId)
+  return voice ? voice.name : voiceId
+}
 
 async function fetchProfiles() {
   loadingProfiles.value = true
@@ -221,53 +282,36 @@ async function fetchAvailableVoices() {
       availableError.value = res.data.error
     }
   } catch (err) {
-    availableError.value = 'ElevenLabs 목소리 목록을 불러오는 데 실패했습니다.'
+    availableError.value = '목소리 목록을 불러오는 데 실패했습니다.'
     availableVoices.value = []
   } finally {
     loadingAvailable.value = false
   }
 }
 
+function fillForm({ name = '', voiceId = '', speed = 1.0, variation = 0.5 } = {}) {
+  form.name = name
+  form.voiceId = voiceId
+  form.speed = speed
+  form.variation = variation
+  previewAudioSrc.value = ''
+}
+
 function openModal(item = null) {
   editingItem.value = item
-  if (item) {
-    form.name = item.name
-    form.voiceId = item.voiceId
-    form.model = item.model
-    form.stability = item.stability
-    form.similarityBoost = item.similarityBoost
-    form.style = item.style
-    form.useSpeakerBoost = item.useSpeakerBoost
-  } else {
-    resetModal()
-  }
-  previewAudioSrc.value = ''
+  fillForm(item || {})
   modalVisible.value = true
 }
 
 function resetModal() {
-  form.name = ''
-  form.voiceId = ''
-  form.model = 'eleven_multilingual_v2'
-  form.stability = 0.5
-  form.similarityBoost = 0.75
-  form.style = 0.0
-  form.useSpeakerBoost = true
-  previewAudioSrc.value = ''
+  fillForm()
   editingItem.value = null
   formRef.value?.resetFields()
 }
 
 function prefillFromVoice(voice) {
   editingItem.value = null
-  form.name = voice.name
-  form.voiceId = voice.voice_id
-  form.model = 'eleven_multilingual_v2'
-  form.stability = 0.5
-  form.similarityBoost = 0.75
-  form.style = 0.0
-  form.useSpeakerBoost = true
-  previewAudioSrc.value = ''
+  fillForm({ name: voice.name, voiceId: voice.voice_id })
   modalVisible.value = true
 }
 
@@ -279,11 +323,8 @@ async function handleSave() {
       const payload = {
         name: form.name,
         voiceId: form.voiceId,
-        model: form.model,
-        stability: form.stability,
-        similarityBoost: form.similarityBoost,
-        style: form.style,
-        useSpeakerBoost: form.useSpeakerBoost,
+        speed: form.speed,
+        variation: form.variation,
       }
       if (editingItem.value) {
         await api.put(`/voice/profiles/${editingItem.value.id}`, payload)
@@ -331,7 +372,7 @@ async function handleDelete(row) {
 
 async function handlePreview() {
   if (!form.voiceId) {
-    ElMessage.warning('Voice ID를 먼저 입력하세요.')
+    ElMessage.warning('목소리를 먼저 선택하세요.')
     return
   }
   loadingPreview.value = true
@@ -339,10 +380,9 @@ async function handlePreview() {
   try {
     const res = await api.post('/voice/preview', {
       voiceId: form.voiceId,
-      text: '안녕하세요, 저는 AI 상담원입니다.',
-      stability: form.stability,
-      similarityBoost: form.similarityBoost,
-      style: form.style,
+      text: previewText.value || DEFAULT_PREVIEW_TEXT,
+      speed: form.speed,
+      variation: form.variation,
     })
     if (res.data.error) {
       ElMessage.error(res.data.error)
@@ -360,7 +400,51 @@ async function handlePreview() {
   }
 }
 
+function openCloneModal() {
+  cloneForm.name = ''
+  cloneForm.file = null
+  cloneForm.consent = false
+  uploadRef.value?.clearFiles()
+  cloneVisible.value = true
+}
+
+async function handleClone() {
+  cloning.value = true
+  try {
+    const body = new FormData()
+    body.append('name', cloneForm.name.trim())
+    body.append('file', cloneForm.file)
+    const res = await api.post('/voice/clone', body, { timeout: 120000 })
+    ElMessage.success(`"${res.data.name}" 목소리가 등록되었습니다. 프로필을 만들어 미리 들어보세요.`)
+    cloneVisible.value = false
+    await fetchAvailableVoices()
+    prefillFromVoice(res.data)
+  } catch (err) {
+    ElMessage.error(err.response?.data?.message || '목소리 등록에 실패했습니다.')
+  } finally {
+    cloning.value = false
+  }
+}
+
+async function handleDeleteVoice(voice) {
+  try {
+    await ElMessageBox.confirm(
+      `"${voice.name}" 목소리를 삭제하시겠습니까?`,
+      '삭제 확인',
+      { confirmButtonText: '삭제', cancelButtonText: '취소', type: 'warning' }
+    )
+    await api.delete(`/voice/clone/${voice.voice_id}`)
+    ElMessage.success('삭제되었습니다.')
+    fetchAvailableVoices()
+  } catch (err) {
+    if (err !== 'cancel') {
+      ElMessage.error(err.response?.data?.message || '삭제에 실패했습니다.')
+    }
+  }
+}
+
 onMounted(() => {
   fetchProfiles()
+  fetchAvailableVoices()
 })
 </script>

@@ -1,0 +1,17 @@
+# VPS(/etc/livekit/livekit.yaml) — 음성 중계만 담당. AI는 Mac Studio에서 돌고 이 서버로 접속한다
+port: 7880
+# 7880은 nginx(HTTPS)를 통해서만 접근하게 한다
+bind_addresses:
+  - 127.0.0.1
+log_level: info
+
+rtc:
+  tcp_port: 7881
+  # ufw에서 연 UDP 범위와 같아야 한다
+  port_range_start: 50000
+  port_range_end: 50100
+  # VPS의 공인 IP를 자동으로 알아내 클라이언트에게 알려준다
+  use_external_ip: true
+
+# "API키: 시크릿" 한 줄짜리 파일 (권한 600) — 저장소에는 올리지 않는다
+key_file: /etc/livekit/keys.yaml

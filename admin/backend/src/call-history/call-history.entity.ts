@@ -19,6 +19,10 @@ export class CallHistory {
   @Column({ name: 'participant_identity', nullable: true })
   participantIdentity: string;
 
+  /** 상담 링크에 붙어 온 주문번호 (실제 주문인지는 확인하지 않은 값) */
+  @Column({ name: 'order_id', nullable: true })
+  orderId: string;
+
   @Column({ name: 'started_at', type: 'timestamp' })
   startedAt: Date;
 

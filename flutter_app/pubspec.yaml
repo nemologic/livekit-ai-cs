@@ -13,7 +13,7 @@ dependencies:
   livekit_client: ^2.3.0
   http: ^1.1.0
   permission_handler: ^11.0.0
-
+  url_launcher: ^6.3.3
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -21,3 +21,14 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  fonts:
+    - family: Black Han Sans
+      fonts:
+        - asset: assets/fonts/BlackHanSans-Regular.ttf
+    - family: Jua
+      fonts:
+        - asset: assets/fonts/Jua-Regular.ttf
+    - family: Gaegu
+      fonts:
+        - asset: assets/fonts/Gaegu-Bold.ttf
+          weight: 700

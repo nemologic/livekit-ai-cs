@@ -11,3 +11,6 @@
 # 로그
 *.log
 logs/
+
+# VPS로 복사하는 웹 빌드 결과물
+deploy/vps/web/

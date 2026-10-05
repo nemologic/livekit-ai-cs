@@ -9,7 +9,7 @@ import { AgentStatusModule } from './agent-status/agent-status.module';
 import { ForwardingModule } from './forwarding/forwarding.module';
 import { TrainingModule } from './training/training.module';
 import { VoiceModule } from './voice/voice.module';
-import { ElevenLabsModule } from './elevenlabs/elevenlabs.module';
+import { SpeechModule } from './speech/speech.module';
 import { AgentConfigModule } from './agent-config/agent-config.module';
 import { AgentSetting } from './settings/agent-setting.entity';
 import { CallHistory } from './call-history/call-history.entity';
@@ -40,7 +40,7 @@ import { DatabaseInitService } from './common/database-init.service';
     }),
     TypeOrmModule.forFeature([AgentSetting, CallHistory, ForwardingSetting, KnowledgeBase, VoiceProfile]),
     CommonModule,
-    ElevenLabsModule,
+    SpeechModule,
     AuthModule,
     SettingsModule,
     CallHistoryModule,

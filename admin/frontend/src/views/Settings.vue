@@ -29,16 +29,14 @@
         <el-divider content-position="left">TTS 설정</el-divider>
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="TTS 음성 ID">
-              <el-input v-model="form.tts_voice_id" placeholder="ElevenLabs 음성 ID" />
+            <el-form-item label="TTS 음성">
+              <el-input v-model="form.tts_voice_id" placeholder="예: auto, KR, EN-US" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="TTS 모델">
               <el-select v-model="form.tts_model" style="width: 100%;">
-                <el-option label="eleven_multilingual_v2" value="eleven_multilingual_v2" />
-                <el-option label="eleven_turbo_v2" value="eleven_turbo_v2" />
-                <el-option label="eleven_flash_v2_5" value="eleven_flash_v2_5" />
+                <el-option label="MeloTTS (로컬)" value="melotts" />
               </el-select>
             </el-form-item>
           </el-col>
@@ -55,17 +53,17 @@
             placeholder="프리셋을 선택하거나 직접 입력하세요"
             @change="applyPreset"
           >
-            <el-option-group label="Groq (현재 계정 사용 가능)">
+            <el-option-group label="Ollama (로컬)">
               <el-option
-                v-for="p in groqPresets"
+                v-for="p in ollamaPresets"
                 :key="p.model"
                 :label="p.label"
                 :value="p.model"
               />
             </el-option-group>
-            <el-option-group label="OpenRouter (Qwen 2.5 등 — 별도 API 키 필요)">
+            <el-option-group label="OpenAI (클라우드 — API 키 필요, 대화 내용이 외부로 전송됨)">
               <el-option
-                v-for="p in openrouterPresets"
+                v-for="p in openaiPresets"
                 :key="p.model"
                 :label="p.label"
                 :value="p.model"
@@ -82,7 +80,7 @@
             <el-form-item label="LLM 모델">
               <el-input
                 v-model="form.llm_model"
-                placeholder="예: openai/gpt-oss-20b"
+                placeholder="예: qwen2.5:32b"
                 :disabled="selectedPreset !== '__custom__' && selectedPreset !== ''"
               />
             </el-form-item>
@@ -91,26 +89,57 @@
             <el-form-item label="LLM Base URL">
               <el-input
                 v-model="form.llm_base_url"
-                placeholder="예: https://api.groq.com/openai/v1"
+                placeholder="예: http://localhost:11434/v1"
                 :disabled="selectedPreset !== '__custom__' && selectedPreset !== ''"
               />
             </el-form-item>
           </el-col>
         </el-row>
 
-        <!-- OpenRouter 선택 시 안내 -->
+        <!-- 외부 API 선택 시 안내 -->
         <el-alert
-          v-if="isOpenRouter"
+          v-if="isRemoteLlm"
           type="warning"
           :closable="false"
           style="margin-bottom: 16px;"
         >
           <template #title>
-            OpenRouter API 키 설정 필요
+            외부 LLM API 키 설정 필요
           </template>
-          에이전트 서버의 <code>.env</code> 파일에 <code>OPENROUTER_API_KEY</code>를 추가하고,
-          <code>agent.ts</code>의 <code>apiKey</code>를 <code>process.env.OPENROUTER_API_KEY</code>로 변경하세요.
+          OpenAI 모델은 에이전트 서버의 <code>agent/.env</code>에 <code>OPENAI_API_KEY</code>가, 그 밖의 외부 주소는 <code>LLM_API_KEY</code>가 있어야 합니다. 키를 넣은 뒤에는 에이전트를 재시작하세요.
         </el-alert>
+
+        <!-- 운영 설정 -->
+        <el-divider content-position="left">운영 설정</el-divider>
+        <el-form-item label="동시 통화 수">
+          <el-input-number v-model="form.max_concurrent_calls" :min="1" :max="20" :step="1" step-strictly />
+          <div style="font-size: 12px; color: #909399; margin-top: 4px; width: 100%;">
+            이 수만큼 통화 중이면 새 고객에게는 "모든 상담원이 통화 중" 안내가 나갑니다. 통화가 겹치면 응답이 그만큼 느려지므로 장비 성능에 맞춰 정하세요.
+          </div>
+        </el-form-item>
+
+        <el-form-item label="통화 시간 제한">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <el-switch v-model="form.call_time_limit_enabled" active-text="사용" inactive-text="사용 안 함" />
+            <el-input-number
+              v-model="form.call_time_limit_minutes"
+              :min="1"
+              :max="120"
+              :step="1"
+              step-strictly
+              :disabled="!form.call_time_limit_enabled"
+            />
+            <span>분</span>
+            <el-checkbox
+              v-model="form.call_time_limit_warning"
+              :disabled="!form.call_time_limit_enabled"
+              style="margin-left: 12px;"
+            >종료 1분 전 예고 멘트</el-checkbox>
+          </div>
+          <div style="font-size: 12px; color: #909399; margin-top: 4px; width: 100%;">
+            켜 두면 통화가 이 시간을 넘길 때 상담원이 종료 안내를 하고 통화를 끝냅니다. 예고 멘트를 켜면 끝나기 1분 전에 "상담 시간이 1분 남았습니다"라고 알립니다. 다음 통화부터 적용됩니다.
+          </div>
+        </el-form-item>
 
         <el-form-item>
           <el-button type="primary" size="large" :loading="saving" @click="handleSave">저장</el-button>
@@ -141,24 +170,35 @@ const form = reactive({
   tts_model: '',
   llm_model: '',
   llm_base_url: '',
+  max_concurrent_calls: 2,
+  call_time_limit_enabled: false,
+  call_time_limit_minutes: 10,
+  call_time_limit_warning: true,
 })
 
-const groqPresets = [
-  { label: 'GPT OSS 20B (빠름, 현재 사용 중)', model: 'openai/gpt-oss-20b', baseUrl: 'https://api.groq.com/openai/v1' },
-  { label: 'GPT OSS 120B (고성능)', model: 'openai/gpt-oss-120b', baseUrl: 'https://api.groq.com/openai/v1' },
-  { label: 'Qwen 3 27B (다국어 우수)', model: 'qwen/qwen3.8-27b', baseUrl: 'https://api.groq.com/openai/v1' },
+const OLLAMA_BASE_URL = 'http://localhost:11434/v1'
+
+const ollamaPresets = [
+  { label: 'Qwen 2.5 32B (권장 — 실시간 통화 가능)', model: 'qwen2.5:32b', baseUrl: OLLAMA_BASE_URL },
+  { label: 'DeepSeek-R1 Distill Qwen 32B (추론 모델 — 답변 전 생각 시간 때문에 통화에서는 응답이 끊김)', model: 'deepseek-r1:32b', baseUrl: OLLAMA_BASE_URL },
+  { label: 'Mistral-Nemo 12B (빠름 — 한국어가 다소 어색)', model: 'mistral-nemo:12b', baseUrl: OLLAMA_BASE_URL },
+  { label: 'Llama 3.1 8B (매우 빠름 — 한국어 내용이 부정확)', model: 'llama3.1:8b', baseUrl: OLLAMA_BASE_URL },
+  { label: 'Llama 3.2 3B (가장 빠름 — 한국어가 깨짐, 비권장)', model: 'llama3.2:3b', baseUrl: OLLAMA_BASE_URL },
+  { label: 'Qwen 2.5 72B (64GB 장비에서는 너무 느려 응답 끊김)', model: 'qwen2.5:72b', baseUrl: OLLAMA_BASE_URL },
 ]
 
-const openrouterPresets = [
-  { label: 'Qwen 2.5 72B Instruct', model: 'qwen/qwen-2.5-72b-instruct', baseUrl: 'https://openrouter.ai/api/v1' },
-  { label: 'Qwen 2.5 7B Instruct (경량)', model: 'qwen/qwen-2.5-7b-instruct', baseUrl: 'https://openrouter.ai/api/v1' },
-  { label: 'Qwen 2.5 Coder 32B', model: 'qwen/qwen-2.5-coder-32b-instruct', baseUrl: 'https://openrouter.ai/api/v1' },
+const OPENAI_BASE_URL = 'https://api.openai.com/v1'
+
+const openaiPresets = [
+  { label: 'GPT-4.1', model: 'gpt-4.1', baseUrl: OPENAI_BASE_URL },
+  { label: 'GPT-4.1 mini (빠름)', model: 'gpt-4.1-mini', baseUrl: OPENAI_BASE_URL },
+  { label: 'GPT-4o mini (빠름, 저렴)', model: 'gpt-4o-mini', baseUrl: OPENAI_BASE_URL },
 ]
 
-const allPresets = [...groqPresets, ...openrouterPresets]
+const allPresets = [...ollamaPresets, ...openaiPresets]
 
-const isOpenRouter = computed(() =>
-  form.llm_base_url.includes('openrouter.ai')
+const isRemoteLlm = computed(() =>
+  form.llm_base_url !== '' && !/\/\/(localhost|127\.0\.0\.1)[:/]/.test(form.llm_base_url)
 )
 
 function applyPreset(value) {
@@ -187,6 +227,10 @@ async function loadSettings() {
     form.tts_model     = data.tts_model     || ''
     form.llm_model     = data.llm_model     || ''
     form.llm_base_url  = data.llm_base_url  || ''
+    form.max_concurrent_calls = Number(data.max_concurrent_calls) || 2
+    form.call_time_limit_enabled = data.call_time_limit_enabled === 'true'
+    form.call_time_limit_minutes = Number(data.call_time_limit_minutes) || 10
+    form.call_time_limit_warning = data.call_time_limit_warning !== 'false'
     syncPresetFromForm()
   } catch {
     ElMessage.error('설정을 불러오는 데 실패했습니다.')
@@ -204,10 +248,14 @@ async function handleSave() {
       tts_model:     form.tts_model,
       llm_model:     form.llm_model,
       llm_base_url:  form.llm_base_url,
+      max_concurrent_calls: String(form.max_concurrent_calls),
+      call_time_limit_enabled: String(form.call_time_limit_enabled),
+      call_time_limit_minutes: String(form.call_time_limit_minutes),
+      call_time_limit_warning: String(form.call_time_limit_warning),
     })
     ElMessage.success('설정이 저장되었습니다.')
-  } catch {
-    ElMessage.error('설정 저장에 실패했습니다.')
+  } catch (err) {
+    ElMessage.error(err.response?.data?.message || '설정 저장에 실패했습니다.')
   } finally {
     saving.value = false
   }

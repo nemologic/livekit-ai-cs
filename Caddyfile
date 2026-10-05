@@ -1,0 +1,27 @@
+# 웹 상담 화면용 HTTPS 리버스 프록시 — 브라우저는 HTTPS에서만 마이크를 허용한다
+# 실행: caddy run --config Caddyfile   (사전에 flutter_app에서 flutter build web)
+{
+	# 도메인 없이 자체 서명 인증서를 쓰는 동안은 시스템 신뢰 저장소에 설치하지 않는다
+	skip_install_trust
+}
+
+# 도메인이 생기면 이 줄을 도메인으로 바꾸고 `tls internal`을 지우면 정식 인증서가 발급된다
+https://192.168.200.102 {
+	tls internal
+
+	# 토큰 서버
+	handle /token {
+		reverse_proxy localhost:4002
+	}
+
+	# LiveKit 시그널링 (WebSocket)
+	handle /rtc* {
+		reverse_proxy localhost:7880
+	}
+
+	# Flutter 웹 빌드
+	handle {
+		root * flutter_app/build/web
+		file_server
+	}
+}

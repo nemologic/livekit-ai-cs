@@ -33,6 +33,9 @@
         stripe
       >
         <el-table-column prop="id" label="ID" width="70" />
+        <el-table-column prop="orderId" label="주문번호" min-width="140">
+          <template #default="{ row }">{{ row.orderId || '-' }}</template>
+        </el-table-column>
         <el-table-column prop="roomId" label="룸 ID" min-width="160">
           <template #default="{ row }">
             <el-text truncated>{{ row.roomId }}</el-text>
